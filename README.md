@@ -79,3 +79,16 @@ export PATH=/Users/myuser/Library/Android/sdk/platform-tools:$PATH
 4. Create virtual device and click play to start
 
 5. Select 'Run app on Android' in Expo to run app on virtual device
+
+### Install React Native library Gifted Chat for developing chat apps
+
+1. Navigate to project folder and run
+```
+npm install react-native-gifted-chat --save
+```
+
+2. Import Gifted Chat and the Bubble component to Chat.js
+```
+import { Bubble, GiftedChat } from 'react-native-gifted-chat'; 
+```
+
