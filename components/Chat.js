@@ -2,42 +2,110 @@ import React from 'react';
 import { StyleSheet, View, Text, Platform, KeyboardAvoidingView } from 'react-native';
 import { Bubble, GiftedChat } from 'react-native-gifted-chat';
 
+//Import functions from SDKs
+const firebase = require('firebase');
+require('firebase/firestore');
+
 export default class Chat extends React.Component {
   constructor() {
     super();
     this.state = {
       messages: [],
+      uid: 0,
+      user: {
+        _id: '',
+        name: '',
+        avatar: '',
+      },
     };
+
+    //Set up Firebase
+    const firebaseConfig = {
+      apiKey: "AIzaSyBzijO5iafmIJ6iED0JodQt3Fw9ooLsPJM",
+      authDomain: "chat-app-1bb9e.firebaseapp.com",
+      projectId: "chat-app-1bb9e",
+      storageBucket: "chat-app-1bb9e.appspot.com",
+      messagingSenderId: "470601175876",
+      appId: "1:470601175876:web:affa41aca67d3bf812bd11"
+    }
+
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
   }
 
-  componentDidMount() {
-    {/* Sets the messages state */ }
+  //Retrieve collection data & store in messages
+  onCollectionUpdate = (querySnapshot) => {
+    const messages = [];
+    //go through each document
+    querySnapshot.forEach((doc) => {
+      //get the QueryDocumentSnapshot's data
+      let data = doc.data();
+      messages.push({
+        _id: data._id,
+        text: data.text,
+        createdAt: data.createdAt.toDate(),
+        user: {
+          _id: data.user._id,
+          name: data.user.name,
+          avatar: data.user.avatar,
+        },
+      });
+    });
     this.setState({
-      messages: [
-        {
-          _id: 1,
-          text: "Hello developer",
-          createdAt: new Date(),
-          user: {
-            _id: 2,
-            name: "React Native",
-            avatar: "https://placeimg.com/140/140/any",
-          },
+      messages,
+    });
+  };
+
+  componentDidMount() {
+    this.referenceChatMessages = firebase.firestore().collection("messages");
+    {/* Sets the messages state */ }
+    this.authUnsubscribe = firebase.auth().onAuthStateChanged((user) => {
+      if (!user) {
+        firebase.auth().signInAnonymously();
+      }
+      //update user state with currently active user data
+      this.setState({
+        uid: user.uid,
+        messages: [],
+        user: {
+          _id: user.uid,
+          //name: name,
         },
-        {
-          _id: 2,
-          text: "This is a system message",
-          createdAt: new Date(),
-          system: true,
-        },
-      ],
+      });
+
+      // listen for collection changes for current user
+      this.unsubscribe = this.referenceChatMessages
+        .orderBy('createdAt', 'desc')
+        .onSnapshot(this.onCollectionUpdate);
+    });
+  }
+
+  componentWillUnmount() {
+    // stop listening to authentication
+    this.authUnsubscribe();
+    // stop listening for changes
+    this.unsubscribe();
+  }
+
+  // add a new list to the collection
+  addMessages() {
+    const message = this.state.messages[0];
+    this.referenceChatMessages.add({
+      uid: this.state.uid,
+      _id: message._id,
+      text: message.text,
+      createdAt: message.createdAt,
+      user: message.user,
     });
   }
 
   onSend(messages = []) {
     this.setState((previousState) => ({
       messages: GiftedChat.append(previousState.messages, messages),
-    }));
+    }), () => {
+      this.addMessages(this.state.messages[0]);
+    });
   }
 
   renderBubble(props) {
@@ -69,7 +137,7 @@ export default class Chat extends React.Component {
           messages={this.state.messages}
           onSend={(messages) => this.onSend(messages)}
           user={{
-            _id: 1,
+            _id: this.state.user._id,
           }}
         />
         {/* Fixes the issue of the keyboard covering the input field on some Android devices */}
