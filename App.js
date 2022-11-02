@@ -18,10 +18,10 @@ import {
 const Stack = createStackNavigator();
 
 export default class App extends React.Component {
-  //constructor(props) {
-  //  super(props);
-  //  this.state = { text: '' };
-  //}
+  constructor(props) {
+    super(props);
+    this.state = { text: '' };
+  }
 
   //alert the user input
   alertMyText(input = []) {
