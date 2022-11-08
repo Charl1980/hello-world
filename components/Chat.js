@@ -1,6 +1,8 @@
 import React from 'react';
 import { StyleSheet, View, Text, Platform, KeyboardAvoidingView } from 'react-native';
-import { Bubble, GiftedChat } from 'react-native-gifted-chat';
+import { Bubble, GiftedChat, InputToolbar } from 'react-native-gifted-chat';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import NetInfo from '@react-native-community/netinfo';
 
 //Import functions from SDKs
 const firebase = require('firebase');
@@ -17,6 +19,7 @@ export default class Chat extends React.Component {
         name: '',
         avatar: '',
       },
+      isConnected: false,
     };
 
     //Set up Firebase
@@ -57,35 +60,94 @@ export default class Chat extends React.Component {
     });
   };
 
-  componentDidMount() {
-    this.referenceChatMessages = firebase.firestore().collection("messages");
-    {/* Sets the messages state */ }
-    this.authUnsubscribe = firebase.auth().onAuthStateChanged((user) => {
-      if (!user) {
-        firebase.auth().signInAnonymously();
-      }
-      //update user state with currently active user data
+  //Retrieve messages from asyncStorage
+  async getMessages() {
+    let messages = '';
+    try {
+      messages = await AsyncStorage.getItem('messages') || [];
       this.setState({
-        uid: user.uid,
-        messages: [],
-        user: {
-          _id: user.uid,
-          //name: name,
-        },
+        messages: JSON.parse(messages)
       });
+    } catch (error) {
+      console.log(error.message);
+    }
+  };
 
-      // listen for collection changes for current user
-      this.unsubscribe = this.referenceChatMessages
-        .orderBy('createdAt', 'desc')
-        .onSnapshot(this.onCollectionUpdate);
+  //Save messages from asyncStorage
+  async saveMessages() {
+    try {
+      await AsyncStorage.setItem('messages', JSON.stringify(this.state.messages));
+    } catch (error) {
+      console.log(error.message);
+    }
+  };
+
+  //Delete messages from asyncStorage
+  async deleteMessages() {
+    try {
+      await AsyncStorage.removeItem('messages');
+      this.setState({
+        messages: []
+      });
+    } catch (error) {
+      console.log(error.message);
+    }
+  };
+
+  componentDidMount() {
+
+    //Display username
+    let { name } = this.props.route.params;
+    this.props.navigation.setOptions({ title: name });
+
+    //If user is online, authenticate & load messages from Firebase. If user is offline, load & display from asyncStorage
+    NetInfo.fetch().then(connection => {
+      if (connection.isConnected) {
+        this.setState({
+          isConnected: true,
+        });
+        console.log('online');
+
+        this.referenceChatMessages = firebase.firestore().collection("messages");
+
+        {/* Sets the messages state */ }
+        this.authUnsubscribe = firebase.auth().onAuthStateChanged((user) => {
+          if (!user) {
+            firebase.auth().signInAnonymously();
+          }
+          //update user state with currently active user data
+          this.setState({
+            uid: user.uid,
+            messages: [],
+            user: {
+              _id: user.uid,
+              name: name,
+            },
+          });
+
+          // listen for collection changes for current user
+          this.unsubscribe = this.referenceChatMessages
+            .orderBy('createdAt', 'desc')
+            .onSnapshot(this.onCollectionUpdate);
+          this.saveMessages();
+        });
+      } else {
+        this.setState({
+          isConnected: false,
+        });
+        console.log('offline');
+        this.getMessages();
+      }
     });
   }
 
   componentWillUnmount() {
-    // stop listening to authentication
-    this.authUnsubscribe();
-    // stop listening for changes
-    this.unsubscribe();
+    if (this.isConnected) {
+      // stop listening to authentication
+      this.authUnsubscribe();
+      // stop listening for changes
+      this.unsubscribe();
+    }
   }
 
   // add a new list to the collection
@@ -105,11 +167,13 @@ export default class Chat extends React.Component {
       messages: GiftedChat.append(previousState.messages, messages),
     }), () => {
       this.addMessages(this.state.messages[0]);
+      this.saveMessages();
+      this.deleteMessages();
     });
   }
 
   renderBubble(props) {
-    {/* Sets the colour of the renderBubble */ }
+    //Sets the colour of the renderBubble
     return (
       <Bubble
         {...props}
@@ -122,22 +186,33 @@ export default class Chat extends React.Component {
     );
   }
 
-  render() {
-    {/* Sets the name typed in the Start screen to be displayed at the top of the Chat screen */ }
-    let name = this.props.route.params.name;
-    this.props.navigation.setOptions({ title: name });
+  //Hides Input when offline
+  renderInputToolbar(props) {
+    if (this.state.isConnected == false) {
+    } else {
+      return (
+        <InputToolbar
+          {...props}
+        />
+      );
+    }
+  }
 
-    {/* Sets the background color selected on the Start screen */ }
-    let color = this.props.route.params.color;
+  render() {
+
+    //Sets background color selected on the Start screen & name displayed at the top of the Chat screen
+    const { color, name } = this.props.route.params;
 
     return (
       <View style={[{ backgroundColor: color }, { flex: 1 }]}>
         <GiftedChat
           renderBubble={this.renderBubble.bind(this)}
+          renderInputToolbar={this.renderInputToolbar.bind(this)}
           messages={this.state.messages}
           onSend={(messages) => this.onSend(messages)}
           user={{
             _id: this.state.user._id,
+            name: name,
           }}
         />
         {/* Fixes the issue of the keyboard covering the input field on some Android devices */}
