@@ -24,9 +24,9 @@ export default class App extends React.Component {
   }
 
   //alert the user input
-  alertMyText(input = []) {
-    Alert.alert(input.text);
-  }
+  //alertMyText(input = []) {
+  //  Alert.alert(input.text);
+  //}
 
   render() {
     return (
