@@ -37,34 +37,11 @@ export default class Chat extends React.Component {
     }
   }
 
-  //Retrieve collection data & store in messages
-  onCollectionUpdate = (querySnapshot) => {
-    const messages = [];
-    //go through each document
-    querySnapshot.forEach((doc) => {
-      //get the QueryDocumentSnapshot's data
-      let data = doc.data();
-      messages.push({
-        _id: data._id,
-        text: data.text,
-        createdAt: data.createdAt.toDate(),
-        user: {
-          _id: data.user._id,
-          name: data.user.name,
-          avatar: data.user.avatar,
-        },
-      });
-    });
-    this.setState({
-      messages,
-    });
-  };
-
   //Retrieve messages from asyncStorage
   async getMessages() {
     let messages = '';
     try {
-      messages = await AsyncStorage.getItem('messages') || [];
+      messages = (await AsyncStorage.getItem('messages')) || [];
       this.setState({
         messages: JSON.parse(messages)
       });
@@ -73,7 +50,7 @@ export default class Chat extends React.Component {
     }
   };
 
-  //Save messages from asyncStorage
+  //Save messages to asyncStorage
   async saveMessages() {
     try {
       await AsyncStorage.setItem('messages', JSON.stringify(this.state.messages));
@@ -110,7 +87,7 @@ export default class Chat extends React.Component {
 
         this.referenceChatMessages = firebase.firestore().collection("messages");
 
-        {/* Sets the messages state */ }
+        //Sets the messages state
         this.authUnsubscribe = firebase.auth().onAuthStateChanged((user) => {
           if (!user) {
             firebase.auth().signInAnonymously();
@@ -150,8 +127,17 @@ export default class Chat extends React.Component {
     }
   }
 
+  onSend(messages = []) {
+    this.setState((previousState) => ({
+      messages: GiftedChat.append(previousState.messages, messages),
+    }), () => {
+      this.saveMessages();
+      this.addMessages();
+    });
+  }
+
   // add a new list to the collection
-  addMessages() {
+  addMessages = () => {
     const message = this.state.messages[0];
     this.referenceChatMessages.add({
       uid: this.state.uid,
@@ -162,15 +148,28 @@ export default class Chat extends React.Component {
     });
   }
 
-  onSend(messages = []) {
-    this.setState((previousState) => ({
-      messages: GiftedChat.append(previousState.messages, messages),
-    }), () => {
-      this.addMessages(this.state.messages[0]);
-      this.saveMessages();
-      this.deleteMessages();
+  //Retrieve collection data & store in messages
+  onCollectionUpdate = (querySnapshot) => {
+    const messages = [];
+    //go through each document
+    querySnapshot.forEach((doc) => {
+      //get the QueryDocumentSnapshot's data
+      let data = doc.data();
+      messages.push({
+        _id: data._id,
+        text: data.text,
+        createdAt: data.createdAt.toDate(),
+        user: {
+          _id: data.user._id,
+          name: data.user.name,
+          avatar: data.user.avatar,
+        },
+      });
     });
-  }
+    this.setState({
+      messages,
+    });
+  };
 
   renderBubble(props) {
     //Sets the colour of the renderBubble
