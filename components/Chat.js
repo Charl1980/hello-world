@@ -3,6 +3,9 @@ import { StyleSheet, View, Text, Platform, KeyboardAvoidingView } from 'react-na
 import { Bubble, GiftedChat, InputToolbar } from 'react-native-gifted-chat';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
+import { ActionSheetProvider } from '@expo/react-native-action-sheet';
+import CustomActions from './CustomActions';
+import MapView from 'react-native-maps';
 
 //Import functions from SDKs
 const firebase = require('firebase');
@@ -20,6 +23,8 @@ export default class Chat extends React.Component {
         avatar: '',
       },
       isConnected: false,
+      image: null,
+      location: null,
     };
 
     //Set up Firebase
@@ -30,7 +35,7 @@ export default class Chat extends React.Component {
       storageBucket: "chat-app-1bb9e.appspot.com",
       messagingSenderId: "470601175876",
       appId: "1:470601175876:web:affa41aca67d3bf812bd11"
-    }
+    };
 
     if (!firebase.apps.length) {
       firebase.initializeApp(firebaseConfig);
@@ -142,9 +147,11 @@ export default class Chat extends React.Component {
     this.referenceChatMessages.add({
       uid: this.state.uid,
       _id: message._id,
-      text: message.text,
+      text: message.text || '',
       createdAt: message.createdAt,
       user: message.user,
+      image: message.image || null,
+      location: message.location || null,
     });
   }
 
@@ -157,13 +164,15 @@ export default class Chat extends React.Component {
       let data = doc.data();
       messages.push({
         _id: data._id,
-        text: data.text,
+        text: data.text || '',
         createdAt: data.createdAt.toDate(),
         user: {
           _id: data.user._id,
           name: data.user.name,
-          avatar: data.user.avatar,
+          avatar: data.user.avatar || '',
         },
+        image: data.image || null,
+        location: data.location || null,
       });
     });
     this.setState({
@@ -197,26 +206,58 @@ export default class Chat extends React.Component {
     }
   }
 
+  renderCustomActions = (props) => {
+    return <CustomActions {...props} />;
+  };
+
+  renderCustomView(props) {
+    const { currentMessage } = props;
+    if (currentMessage.location) {
+      return (
+        <MapView
+          style={{
+            width: 150,
+            height: 100,
+            borderRadius: 13,
+            margin: 3
+          }}
+          region={{
+            latitude: currentMessage.location.latitude,
+            longitude: currentMessage.location.longitude,
+            latitudeDelta: 0.0922,
+            longitudeDelta: 0.0421,
+          }}
+        />
+      );
+    }
+    return null;
+  }
+
   render() {
 
     //Sets background color selected on the Start screen & name displayed at the top of the Chat screen
     const { color, name } = this.props.route.params;
 
     return (
-      <View style={[{ backgroundColor: color }, { flex: 1 }]}>
-        <GiftedChat
-          renderBubble={this.renderBubble.bind(this)}
-          renderInputToolbar={this.renderInputToolbar.bind(this)}
-          messages={this.state.messages}
-          onSend={(messages) => this.onSend(messages)}
-          user={{
-            _id: this.state.user._id,
-            name: name,
-          }}
-        />
-        {/* Fixes the issue of the keyboard covering the input field on some Android devices */}
-        {Platform.OS === 'android' ? <KeyboardAvoidingView behavior='height' /> : null}
-      </View>
+      <ActionSheetProvider>
+        <View style={[{ backgroundColor: color }, { flex: 1 }]}>
+          <GiftedChat
+            renderBubble={this.renderBubble.bind(this)}
+            renderInputToolbar={this.renderInputToolbar.bind(this)}
+            messages={this.state.messages}
+            isConnected={this.state.isConnected}
+            onSend={(messages) => this.onSend(messages)}
+            user={{
+              _id: this.state.user._id,
+              name: name,
+            }}
+            renderActions={this.renderCustomActions.bind(this)}
+            renderCustomView={this.renderCustomView.bind(this)}
+          />
+          {/* Fixes the issue of the keyboard covering the input field on some Android devices */}
+          {Platform.OS === 'android' ? <KeyboardAvoidingView behavior='height' /> : null}
+        </View>
+      </ActionSheetProvider>
     );
   }
 }
